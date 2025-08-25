@@ -1,0 +1,28 @@
+# macOS specific files
+.DS_Store
+.localized
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# VS Code specific files
+.vscode/
+
+# Python specific files
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+.env
+venv/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+htmlcov/
+.coverage
