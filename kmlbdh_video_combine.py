@@ -1,7 +1,7 @@
-# mtb_video_combine.py
+# kmlbdh_video_combine.py
 """
-MTB Video Combine - RAM/VRAM-Aware, Tiled, Chunked Video Encoder
-Compatible with older and newer ComfyUI versions.
+kmlbdh Video Combine (Smart + Tiled)
+Auto-optimizes for RAM/VRAM. Safe for 4K/8K. Built by kmlbdh.
 """
 import os
 import torch
@@ -11,41 +11,28 @@ import subprocess
 from comfy.utils import ProgressBar
 
 # Import local utils
-from .mtb_utils import save_video
+from .kmlbdh_utils import save_video
 
 
-# 🔁 Backward-compatible output path helper
+# 🔁 Backward-compatible helpers
 def get_output_directory():
     import folder_paths
     return folder_paths.get_output_directory()
 
-
-def get_filename_list(output_dir, filename_prefix, file_extension, prompt=None, extra_pnginfo=None):
-    # Generate counter and filename
-    subfolder = ""
-    try:
-        counter = get_save_image_counter(output_dir, filename_prefix)
-    except:
-        counter = 1  # fallback
-    return output_dir, filename_prefix, counter, subfolder, filename_prefix
-
-
-def get_save_image_counter(output_directory, filename_prefix="ComfyUI"):
+def get_save_image_counter(output_dir, prefix="kmlbdh"):
     from pathlib import Path
-    max_counter = 0
-    dir_path = Path(output_directory)
-    prefix_len = len(filename_prefix)
-    for file in dir_path.glob(f"{filename_prefix}_*.mp4"):
+    counter = 1
+    for file in Path(output_dir).glob(f"{prefix}_*.mp4"):
         try:
-            num = int(file.stem[prefix_len+1:])
-            if num > max_counter:
-                max_counter = num
-        except ValueError:
+            num = int(file.stem[len(prefix)+1:])
+            if num >= counter:
+                counter = num + 1
+        except:
             continue
-    return max_counter + 1
+    return counter
 
 
-class MTB_VideoCombine:
+class KMLBDH_VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
         ram_gb = round(psutil.virtual_memory().total / (1024**3))
@@ -55,17 +42,17 @@ class MTB_VideoCombine:
             default_chunk = 6
             default_tile = 1024
             default_save_in_mem = False
-            perf_hint = "Low VRAM/RAM detected"
+            perf_hint = "Low VRAM/RAM"
         elif ram_gb < 32 or vram_gb < 16:
             default_chunk = 8
             default_tile = 1024
             default_save_in_mem = False
-            perf_hint = "Mid-range system"
+            perf_hint = "Mid-range"
         else:
             default_chunk = 12
             default_tile = 0
             default_save_in_mem = True
-            perf_hint = "High-end system"
+            perf_hint = "High-end"
 
         return {
             "required": {
@@ -83,7 +70,7 @@ class MTB_VideoCombine:
                 }),
                 "save_images_in_memory": ("BOOLEAN", {
                     "default": default_save_in_mem,
-                    "label": "Save in RAM"
+                    "label": "Save in RAM?"
                 }),
                 "tile_size": ("INT", {
                     "default": default_tile,
@@ -99,11 +86,11 @@ class MTB_VideoCombine:
                     "label": "Tile Overlap"
                 }),
                 "filename_prefix": ("STRING", {
-                    "default": "MTB_Video",
+                    "default": "kmlbdh",
                     "multiline": False,
                     "dynamicPrompts": False,
-                    "placeholder": "Enter filename prefix",
-                    "label": "Filename Prefix"
+                    "placeholder": "Enter output prefix",
+                    "label": "📁 Filename Prefix"
                 }),
             },
             "optional": {
@@ -117,29 +104,27 @@ class MTB_VideoCombine:
 
     RETURN_TYPES = ("VHS_FILENAMES",)
     FUNCTION = "combine"
-    CATEGORY = "mtb/video"
+    CATEGORY = "kmlbdh"
     OUTPUT_NODE = True
 
     def combine(self, images, frame_rate, codec, crf, preset, pix_fmt, chunk_size, save_images_in_memory, tile_size, tile_overlap, filename_prefix, audio=None, prompt=None, extra_pnginfo=None):
-        frames = images.cpu()  # Ensure on CPU
+        frames = images.cpu()
         total_frames = frames.shape[0]
         if total_frames == 0:
             raise ValueError("No frames to save")
 
-        # Output path
         output_dir = get_output_directory()
         counter = get_save_image_counter(output_dir, filename_prefix)
         file = f"{filename_prefix}_{counter:05d}.mp4"
         file_path = os.path.join(output_dir, file)
 
         pbar = ProgressBar(total_frames)
-
-        # Tiling
         use_tiling = tile_size > 0
         final_tile_size = tile_size if use_tiling else None
 
         try:
             if save_images_in_memory:
+                # Full RAM mode
                 save_video(
                     file_path, frames,
                     fps=frame_rate,
@@ -151,7 +136,8 @@ class MTB_VideoCombine:
                     overlap=tile_overlap
                 )
             else:
-                temp_dir = os.path.join(output_dir, "temp_mtb")
+                # Chunked streaming mode
+                temp_dir = os.path.join(output_dir, "temp_kmlbdh")
                 os.makedirs(temp_dir, exist_ok=True)
                 chunk_files = []
 
@@ -182,20 +168,17 @@ class MTB_VideoCombine:
 
                 # Cleanup
                 for f in chunk_files:
-                    try:
-                        os.remove(f)
-                    except:
-                        pass
+                    try: os.remove(f)
+                    except: pass
                 try:
                     os.remove(concat_file)
                     os.rmdir(temp_dir)
-                except:
-                    pass
+                except: pass
 
         except Exception as e:
-            raise RuntimeError(f"MTB Video Combine failed: {str(e)}")
+            raise RuntimeError(f"kmlbdh Video Combine failed: {str(e)}")
 
-        # Output for preview
+        # UI preview
         result = {
             "filename": file,
             "subfolder": "",
@@ -206,9 +189,9 @@ class MTB_VideoCombine:
 
 
 NODE_CLASS_MAPPINGS = {
-    "MTB_VideoCombine": MTB_VideoCombine
+    "KMLBDH_VideoCombine": KMLBDH_VideoCombine
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "MTB_VideoCombine": "📹 Video Combine (Smart + Tiled)"
+    "KMLBDH_VideoCombine": "📹 kmlbdh Video Combine (Smart + Tiled)"
 }
