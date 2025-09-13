@@ -19,6 +19,10 @@ class DeleteFolderAny:
                 "any_input": ("*", {}),
             }
         }
+    
+    @classmethod
+    def VALIDATE_INPUTS(s, **kwargs):
+        return True  # Bypass all input validation
 
     RETURN_TYPES = ("BOOLEAN", "STRING")
     RETURN_NAMES = ("success", "message")
